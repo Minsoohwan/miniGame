@@ -21,6 +21,20 @@ export type CanyonChunk = {
   rightTopGeo: THREE.BufferGeometry;
 };
 
+type CanyonWave = {
+  amp: number;
+  freq: number;
+  phase: number;
+};
+
+type CanyonProfileConfig = {
+  centerWaves: CanyonWave[];
+  centerOffset: number;
+  widthWaves: CanyonWave[];
+  bumpPhase: number;
+  topPhase: number;
+};
+
 export type AirBackground = {
   world: THREE.Group;
   baseGround: THREE.Mesh;
@@ -29,6 +43,7 @@ export type AirBackground = {
   canyonChunks: CanyonChunk[];
   canyonWallMat: THREE.MeshStandardMaterial;
   canyonTopMat: THREE.MeshStandardMaterial;
+  canyonProfile: CanyonProfileConfig;
   chunkLength: number;
   rockMeshes: THREE.Mesh[];
   rockGeo: THREE.DodecahedronGeometry;
@@ -54,37 +69,62 @@ const Z_STEP = 2;
 const ROCK_COUNT = 70;
 const ITEM_POOL_SIZE = 20;
 
-const CENTER_OFFSET =
-  Math.sin(1.2) * 6.5 + Math.sin(2.3) * 3.2; // makes centerX(0) = 0 so the plane spawns in the middle
-
 // Difficulty ramps with distance travelled (|z|).  Both the rendered canyon and
 // the collision test read from the same function, so geometry and physics stay
 // in sync as the game gets harder.
 const DIFFICULTY_RAMP_DISTANCE = 3000;
+
+function randomRange(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
+function waveValue(wave: CanyonWave, z: number) {
+  return Math.sin(z * wave.freq + wave.phase) * wave.amp;
+}
+
+function createCanyonProfile(): CanyonProfileConfig {
+  const centerWaves: CanyonWave[] = [
+    { amp: randomRange(12.4, 15.6), freq: randomRange(0.018, 0.026), phase: 0 },
+    { amp: randomRange(5.2, 7.4), freq: randomRange(0.039, 0.056), phase: randomRange(0, Math.PI * 2) },
+    { amp: randomRange(2.4, 3.9), freq: randomRange(0.008, 0.014), phase: randomRange(0, Math.PI * 2) },
+  ];
+  const centerOffset = centerWaves.reduce((sum, wave) => sum + waveValue(wave, 0), 0);
+
+  return {
+    centerWaves,
+    centerOffset,
+    widthWaves: [
+      { amp: randomRange(2.6, 3.3), freq: randomRange(0.014, 0.022), phase: randomRange(0, Math.PI * 2) },
+      { amp: randomRange(1.4, 2.1), freq: randomRange(0.046, 0.064), phase: randomRange(0, Math.PI * 2) },
+      { amp: randomRange(0.7, 1.1), freq: randomRange(0.007, 0.012), phase: randomRange(0, Math.PI * 2) },
+    ],
+    bumpPhase: randomRange(0, Math.PI * 2),
+    topPhase: randomRange(0, Math.PI * 2),
+  };
+}
 
 export function getDifficulty(z: number): number {
   const d = -z / DIFFICULTY_RAMP_DISTANCE;
   return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
-export function getCanyonProfile(z: number): { centerX: number; halfWidth: number } {
+export function getCanyonProfile(
+  bg: AirBackground,
+  z: number,
+): { centerX: number; halfWidth: number } {
   const d = getDifficulty(z);
   const curveScale = 1 + 0.75 * d; // path curves more aggressively later on
   const widthScale = 1 - 0.4 * d; // corridor squeezes shut over time
   const minHalfWidth = 3.8;
+  const profile = bg.canyonProfile;
 
   const centerX =
-    (Math.sin(z * 0.022) * 14 +
-      Math.sin(z * 0.047 + 1.2) * 6.5 +
-      Math.sin(z * 0.011 + 2.3) * 3.2) *
-      curveScale -
-    CENTER_OFFSET * curveScale;
+    (profile.centerWaves.reduce((sum, wave) => sum + waveValue(wave, z), 0) -
+      profile.centerOffset) *
+    curveScale;
 
   const halfWidth =
-    (8.5 +
-      Math.sin(z * 0.018) * 3.0 +
-      Math.sin(z * 0.055 + 0.7) * 1.8 +
-      Math.sin(z * 0.009 + 2.1) * 0.9) *
+    (8.5 + profile.widthWaves.reduce((sum, wave) => sum + waveValue(wave, z), 0)) *
     widthScale;
 
   return { centerX, halfWidth: Math.max(minHalfWidth, halfWidth) };
@@ -96,8 +136,8 @@ export function getCanyonProfile(z: number): { centerX: number; halfWidth: numbe
  * same function drives the rendered wall vertices and the collision test so
  * they match exactly.
  */
-function wallBump(z: number, y: number, side: -1 | 1): number {
-  const phase = side < 0 ? 0 : 2.7;
+function wallBump(bg: AirBackground, z: number, y: number, side: -1 | 1): number {
+  const phase = bg.canyonProfile.bumpPhase + (side < 0 ? 0 : 2.7);
   return (
     Math.sin(z * 0.22 + y * 0.15 + phase) * 0.7 +
     Math.sin(z * 0.57 + y * 0.29 + phase * 1.3) * 0.4 +
@@ -110,9 +150,9 @@ function wallBump(z: number, y: number, side: -1 | 1): number {
  * Inset-from-center distance of the actual rendered wall surface on a given side.
  * `halfWidth` already encodes corridor width, and `wallBump` adds the rugged surface.
  */
-function wallInsetAt(z: number, y: number, side: -1 | 1): number {
-  const { halfWidth } = getCanyonProfile(z);
-  return halfWidth + wallBump(z, y, side);
+function wallInsetAt(bg: AirBackground, z: number, y: number, side: -1 | 1): number {
+  const { halfWidth } = getCanyonProfile(bg, z);
+  return halfWidth + wallBump(bg, z, y, side);
 }
 
 export type CanyonSample = {
@@ -123,21 +163,21 @@ export type CanyonSample = {
 };
 
 export function sampleCanyonAtZ(
-  _bg: AirBackground,
+  bg: AirBackground,
   z: number,
   y = WALL_BASE_Y + 10,
 ): CanyonSample {
-  const { centerX, halfWidth } = getCanyonProfile(z);
+  const { centerX, halfWidth } = getCanyonProfile(bg, z);
   return {
     centerX,
     halfWidth,
-    leftHalf: halfWidth + wallBump(z, y, -1),
-    rightHalf: halfWidth + wallBump(z, y, 1),
+    leftHalf: halfWidth + wallBump(bg, z, y, -1),
+    rightHalf: halfWidth + wallBump(bg, z, y, 1),
   };
 }
 
-function getWallTopY(z: number, side: -1 | 1): number {
-  const sidePhase = side < 0 ? 0 : 3.3;
+function getWallTopY(bg: AirBackground, z: number, side: -1 | 1): number {
+  const sidePhase = bg.canyonProfile.topPhase + (side < 0 ? 0 : 3.3);
   return (
     WALL_TOP_Y_BASE +
     Math.sin(z * 0.015 + sidePhase) * 10 +
@@ -289,6 +329,7 @@ function makeWallGeometry(): THREE.BufferGeometry {
 }
 
 function updateWallGeometry(
+  bg: AirBackground,
   geo: THREE.BufferGeometry,
   startZ: number,
   side: -1 | 1,
@@ -300,12 +341,12 @@ function updateWallGeometry(
   const rgb: [number, number, number] = [0, 0, 0];
   for (let iz = 0; iz < zSteps; iz++) {
     const z = startZ - iz * Z_STEP;
-    const { centerX } = getCanyonProfile(z);
-    const topY = getWallTopY(z, side);
+    const { centerX } = getCanyonProfile(bg, z);
+    const topY = getWallTopY(bg, z, side);
     for (let iy = 0; iy <= Y_LAYERS; iy++) {
       const t = iy / Y_LAYERS;
       const y = WALL_BASE_Y + (topY - WALL_BASE_Y) * t;
-      const innerX = centerX + side * wallInsetAt(z, y, side);
+      const innerX = centerX + side * wallInsetAt(bg, z, y, side);
       const idx = iz * vertsPerSlice + iy;
       pos.setXYZ(idx, innerX, y, z);
       // Bands tied to absolute altitude so strata stay horizontal regardless of
@@ -349,6 +390,7 @@ function makeTopGeometry(): THREE.BufferGeometry {
 }
 
 function updateTopGeometry(
+  bg: AirBackground,
   geo: THREE.BufferGeometry,
   startZ: number,
   side: -1 | 1,
@@ -357,9 +399,9 @@ function updateTopGeometry(
   const pos = geo.attributes.position as THREE.BufferAttribute;
   for (let iz = 0; iz < zSteps; iz++) {
     const z = startZ - iz * Z_STEP;
-    const { centerX } = getCanyonProfile(z);
-    const topY = getWallTopY(z, side);
-    const innerX = centerX + side * wallInsetAt(z, topY, side);
+    const { centerX } = getCanyonProfile(bg, z);
+    const topY = getWallTopY(bg, z, side);
+    const innerX = centerX + side * wallInsetAt(bg, z, topY, side);
     const outerX = innerX + side * OUTER_WIDTH;
     const idxInner = iz * 2;
     const idxOuter = iz * 2 + 1;
@@ -371,11 +413,11 @@ function updateTopGeometry(
   geo.computeBoundingSphere();
 }
 
-function updateChunk(chunk: CanyonChunk) {
-  updateWallGeometry(chunk.leftGeo, chunk.startZ, -1);
-  updateWallGeometry(chunk.rightGeo, chunk.startZ, 1);
-  updateTopGeometry(chunk.leftTopGeo, chunk.startZ, -1);
-  updateTopGeometry(chunk.rightTopGeo, chunk.startZ, 1);
+function updateChunk(bg: AirBackground, chunk: CanyonChunk) {
+  updateWallGeometry(bg, chunk.leftGeo, chunk.startZ, -1);
+  updateWallGeometry(bg, chunk.rightGeo, chunk.startZ, 1);
+  updateTopGeometry(bg, chunk.leftTopGeo, chunk.startZ, -1);
+  updateTopGeometry(bg, chunk.rightTopGeo, chunk.startZ, 1);
 }
 
 export function createAirBackground(scene: THREE.Scene): AirBackground {
@@ -409,6 +451,7 @@ export function createAirBackground(scene: THREE.Scene): AirBackground {
     side: THREE.DoubleSide,
   });
 
+  const canyonProfile = createCanyonProfile();
   const canyonChunks: CanyonChunk[] = [];
   for (let i = 0; i < CHUNK_COUNT; i++) {
     const leftGeo = makeWallGeometry();
@@ -433,7 +476,6 @@ export function createAirBackground(scene: THREE.Scene): AirBackground {
       leftTopGeo,
       rightTopGeo,
     };
-    updateChunk(chunk);
     canyonChunks.push(chunk);
     world.add(leftMesh, rightMesh, leftTopMesh, rightTopMesh);
   }
@@ -497,6 +539,7 @@ export function createAirBackground(scene: THREE.Scene): AirBackground {
     canyonChunks,
     canyonWallMat,
     canyonTopMat,
+    canyonProfile,
     chunkLength: CHUNK_LENGTH,
     rockMeshes,
     rockGeo,
@@ -508,6 +551,10 @@ export function createAirBackground(scene: THREE.Scene): AirBackground {
     itemShieldMat,
     itemShieldRingGeo,
   };
+
+  for (const chunk of canyonChunks) {
+    updateChunk(bg, chunk);
+  }
 
   const items: CanyonItem[] = [];
   for (let i = 0; i < ITEM_POOL_SIZE; i++) {
@@ -547,7 +594,7 @@ export function recycleBackground(
         if (c.startZ < farthest.startZ) farthest = c;
       }
       chunk.startZ = farthest.startZ - bg.chunkLength;
-      updateChunk(chunk);
+      updateChunk(bg, chunk);
     }
   }
 
