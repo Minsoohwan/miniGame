@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
+import {
+  playItemPickupSound,
+  playCrashSound,
+  playShieldBreakSound,
+  unlockBackgroundMusic,
+  useBackgroundMusic,
+} from "../../hooks/useBackgroundMusic";
 import { useHighScore } from "../../hooks/useHighScore";
+import { useSoundSetting } from "../../hooks/useSoundSetting";
 import { useStartCountdown } from "../../hooks/useStartCountdown";
 import {
   collectItem,
@@ -17,9 +25,11 @@ export function AirplanePage() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
+  const soundEnabledRef = useRef(false);
   const [sessionKey, setSessionKey] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useSoundSetting();
   const [shieldCharges, setShieldCharges] = useState(0);
   const [speedBuffLeft, setSpeedBuffLeft] = useState(0);
   const [speedStacks, setSpeedStacks] = useState(0);
@@ -31,10 +41,15 @@ export function AirplanePage() {
   const scoreSubmitTokenRef = useRef(0);
   const { highScore, scoreboard, submitScore } = useHighScore("airplane");
   const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
+  useBackgroundMusic("western", soundEnabled && !gameOver);
 
   useEffect(() => {
     pausedRef.current = (menuOpen || isCountingDown) && !gameOver;
   }, [menuOpen, isCountingDown, gameOver]);
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -241,8 +256,14 @@ export function AirplanePage() {
 
       const gotItem = collectItem(bg, plane.root.position);
       if (gotItem === "speed") {
+        if (soundEnabledRef.current) {
+          playItemPickupSound("speed");
+        }
         speedBoostTimers.push(BOOST_DURATION);
       } else if (gotItem === "shield") {
+        if (soundEnabledRef.current) {
+          playItemPickupSound("shield");
+        }
         shieldCount = Math.min(shieldCount + 1, 3);
         setShieldCharges(shieldCount);
       }
@@ -260,6 +281,9 @@ export function AirplanePage() {
       if ((hitsLeft || hitsRight) && shieldCooldown <= 0) {
         if (shieldCount > 0) {
           shieldCount -= 1;
+          if (soundEnabledRef.current) {
+            playShieldBreakSound();
+          }
           setShieldCharges(shieldCount);
           shieldCooldown = 0.8;
           // Nudge the plane back inside the corridor so the shield isn't chain-drained.
@@ -270,6 +294,9 @@ export function AirplanePage() {
           planePos.x = safeX;
         } else {
           running = false;
+          if (soundEnabledRef.current) {
+            playCrashSound();
+          }
           setFinalDistance(traveledDistance);
           setGameOver(true);
           renderer.render(scene, camera);
@@ -380,6 +407,13 @@ export function AirplanePage() {
     navigate("/");
   };
 
+  const handleToggleSound = () => {
+    if (!soundEnabled) {
+      unlockBackgroundMusic();
+    }
+    setSoundEnabled((enabled) => !enabled);
+  };
+
   const highScoreLabel = highScore ? `${highScore.score.toFixed(1)} m` : "기록 없음";
 
   return (
@@ -398,15 +432,26 @@ export function AirplanePage() {
         <div>보호막 x{shieldCharges}</div>
         <div>현재 속도 {speedUi.toFixed(1)}</div>
       </div>
-      {!gameOver && !isCountingDown && (
-        <button
-          type="button"
-          className="game-menu-button"
-          aria-label="게임 메뉴 열기"
-          onClick={() => setMenuOpen(true)}
-        >
-          ⚙
-        </button>
+      {!gameOver && (
+        <div className="game-top-actions">
+          <button
+            type="button"
+            className="game-action-button"
+            aria-label={soundEnabled ? "배경 음악 끄기" : "배경 음악 켜기"}
+            aria-pressed={soundEnabled}
+            onClick={handleToggleSound}
+          >
+            {soundEnabled ? "🔊" : "🔇"}
+          </button>
+          <button
+            type="button"
+            className="game-action-button"
+            aria-label="게임 메뉴 열기"
+            onClick={() => setMenuOpen(true)}
+          >
+            ⚙
+          </button>
+        </div>
       )}
       {countdownLabel && !gameOver && !menuOpen && (
         <div className="game-countdown-overlay" aria-live="assertive">

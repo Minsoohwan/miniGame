@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
+import {
+  playCrashSound,
+  unlockBackgroundMusic,
+  useBackgroundMusic,
+} from "../../hooks/useBackgroundMusic";
 import { useHighScore } from "../../hooks/useHighScore";
+import { useSoundSetting } from "../../hooks/useSoundSetting";
 import { useStartCountdown } from "../../hooks/useStartCountdown";
 import { formatElapsed } from "./logic/formatElapsed";
 import {
@@ -23,20 +29,27 @@ export function BasicRunPage() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
+  const soundEnabledRef = useRef(false);
   const [gameOver, setGameOver] = useState(false);
   const [survivalSeconds, setSurvivalSeconds] = useState(0);
   const [sessionKey, setSessionKey] = useState(0);
   const [elapsedUi, setElapsedUi] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useSoundSetting();
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
   const submittedScoreRef = useRef(false);
   const scoreSubmitTokenRef = useRef(0);
   const { highScore, scoreboard, submitScore } = useHighScore("basic-run");
   const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
+  useBackgroundMusic("runner", soundEnabled && !gameOver);
 
   useEffect(() => {
     pausedRef.current = (menuOpen || isCountingDown) && !gameOver;
   }, [menuOpen, isCountingDown, gameOver]);
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -155,6 +168,9 @@ export function BasicRunPage() {
 
       if (checkPlayerObstacleCollision(human, obstacles)) {
         running = false;
+        if (soundEnabledRef.current) {
+          playCrashSound();
+        }
         setSurvivalSeconds(elapsed);
         setElapsedUi(elapsed);
         setGameOver(true);
@@ -220,6 +236,13 @@ export function BasicRunPage() {
     navigate("/");
   };
 
+  const handleToggleSound = () => {
+    if (!soundEnabled) {
+      unlockBackgroundMusic();
+    }
+    setSoundEnabled((enabled) => !enabled);
+  };
+
   const survivalLabel = formatElapsed(survivalSeconds);
   const highScoreLabel = highScore ? formatElapsed(highScore.score) : "기록 없음";
 
@@ -233,15 +256,26 @@ export function BasicRunPage() {
           </span>
         </div>
       )}
-      {!gameOver && !isCountingDown && (
-        <button
-          type="button"
-          className="game-menu-button"
-          aria-label="게임 메뉴 열기"
-          onClick={() => setMenuOpen(true)}
-        >
-          ⚙
-        </button>
+      {!gameOver && (
+        <div className="game-top-actions">
+          <button
+            type="button"
+            className="game-action-button"
+            aria-label={soundEnabled ? "배경 음악 끄기" : "배경 음악 켜기"}
+            aria-pressed={soundEnabled}
+            onClick={handleToggleSound}
+          >
+            {soundEnabled ? "🔊" : "🔇"}
+          </button>
+          <button
+            type="button"
+            className="game-action-button"
+            aria-label="게임 메뉴 열기"
+            onClick={() => setMenuOpen(true)}
+          >
+            ⚙
+          </button>
+        </div>
       )}
       {countdownLabel && !gameOver && !menuOpen && (
         <div className="game-countdown-overlay" aria-live="assertive">

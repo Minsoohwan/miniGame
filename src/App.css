@@ -262,11 +262,16 @@
   height: 100%;
 }
 
-.game-menu-button {
+.game-top-actions {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 7;
+  z-index: 11;
+  display: flex;
+  gap: 8px;
+}
+
+.game-action-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -288,15 +293,22 @@
     background 0.18s ease;
 }
 
-.game-menu-button:hover {
-  transform: rotate(24deg) scale(1.04);
+.game-action-button:hover {
+  transform: scale(1.04);
   border-color: #fbbf24;
   background: rgba(8, 10, 20, 0.84);
 }
 
-.game-menu-button:focus-visible {
+.game-action-button:focus-visible {
   outline: 2px solid #fbbf24;
   outline-offset: 3px;
+}
+
+.game-action-button[aria-pressed="true"] {
+  border-color: #fbbf24;
+  box-shadow:
+    0 0 18px rgba(251, 191, 36, 0.32),
+    0 8px 22px rgba(0, 0, 0, 0.32);
 }
 
 .game-countdown-overlay {
