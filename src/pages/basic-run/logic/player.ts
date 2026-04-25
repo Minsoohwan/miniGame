@@ -164,7 +164,7 @@ export function disposeHuman(p: HumanPlayer) {
 }
 
 const MOVE_SPEED_BASE = 9;
-const CLAMP_X = 2.6;
+export const PLAYER_MOVE_CLAMP_X = 2.6;
 const CLAMP_Z_MIN = 0.45;
 const CLAMP_Z_MAX = 2.35;
 
@@ -188,8 +188,8 @@ export function applyPlayerKeyboard(
   }
   human.root.position.x = THREE.MathUtils.clamp(
     human.root.position.x,
-    -CLAMP_X,
-    CLAMP_X,
+    -PLAYER_MOVE_CLAMP_X,
+    PLAYER_MOVE_CLAMP_X,
   );
   human.root.position.z = THREE.MathUtils.clamp(
     human.root.position.z,

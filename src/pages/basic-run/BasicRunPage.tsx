@@ -41,7 +41,7 @@ export function BasicRunPage() {
   const scoreSubmitTokenRef = useRef(0);
   const { highScore, scoreboard, submitScore } = useHighScore("basic-run");
   const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
-  useBackgroundMusic("runner", soundEnabled && !gameOver);
+  useBackgroundMusic("runner", soundEnabled && !gameOver, menuOpen);
 
   useEffect(() => {
     pausedRef.current = (menuOpen || isCountingDown) && !gameOver;
@@ -265,15 +265,28 @@ export function BasicRunPage() {
             aria-pressed={soundEnabled}
             onClick={handleToggleSound}
           >
-            {soundEnabled ? "🔊" : "🔇"}
+            <svg className="game-icon game-icon-sound" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9.5v5h4l5 4.5V5L8 9.5H4Z" />
+              {soundEnabled ? (
+                <>
+                  <path d="M16 8.2a5 5 0 0 1 0 7.6" />
+                  <path d="M18.5 5.7a8.5 8.5 0 0 1 0 12.6" />
+                </>
+              ) : (
+                <>
+                  <path d="M16.2 9.2 21 14" />
+                  <path d="M21 9.2 16.2 14" />
+                </>
+              )}
+            </svg>
           </button>
           <button
             type="button"
             className="game-action-button"
-            aria-label="게임 메뉴 열기"
+            aria-label="게임 일시정지"
             onClick={() => setMenuOpen(true)}
           >
-            ⚙
+            <span className="game-icon game-icon-pause" aria-hidden="true" />
           </button>
         </div>
       )}

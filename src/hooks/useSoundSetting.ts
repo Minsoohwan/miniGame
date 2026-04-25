@@ -4,7 +4,8 @@ const soundSettingKey = "settings.soundEnabled";
 
 export function useSoundSetting() {
   const [soundEnabled, setSoundEnabled] = useState(() => {
-    return window.localStorage.getItem(soundSettingKey) === "true";
+    const storedValue = window.localStorage.getItem(soundSettingKey);
+    return storedValue === null ? true : storedValue === "true";
   });
 
   useEffect(() => {

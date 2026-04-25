@@ -282,10 +282,33 @@ export function playShieldBreakSound() {
   }, 460);
 }
 
-export function useBackgroundMusic(kind: MusicKind, shouldPlay: boolean) {
+export function useBackgroundMusic(
+  kind: MusicKind,
+  shouldPlay: boolean,
+  isPaused = false,
+) {
   const contextRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const timerRef = useRef<number | null>(null);
+  const pausedRef = useRef(isPaused);
+  const stepRef = useRef(0);
+  const nextStepTimeRef = useRef(0);
+
+  useEffect(() => {
+    pausedRef.current = isPaused;
+    const context = contextRef.current;
+    const gain = gainRef.current;
+    if (!context || !gain) return;
+
+    const now = context.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    if (isPaused) {
+      gain.gain.setTargetAtTime(0.0001, now, 0.035);
+      nextStepTimeRef.current = now + 0.05;
+    } else {
+      gain.gain.setTargetAtTime(kind === "runner" ? 5.5 : 4.5, now, 0.035);
+    }
+  }, [isPaused, kind]);
 
   useEffect(() => {
     const stopMusic = () => {
@@ -307,6 +330,8 @@ export function useBackgroundMusic(kind: MusicKind, shouldPlay: boolean) {
 
       contextRef.current = null;
       gainRef.current = null;
+      stepRef.current = 0;
+      nextStepTimeRef.current = 0;
     };
 
     if (!shouldPlay) {
@@ -318,7 +343,10 @@ export function useBackgroundMusic(kind: MusicKind, shouldPlay: boolean) {
     if (!context) return stopMusic;
 
     const masterGain = context.createGain();
-    masterGain.gain.setValueAtTime(kind === "runner" ? 5.5 : 4.5, context.currentTime);
+    masterGain.gain.setValueAtTime(
+      pausedRef.current ? 0.0001 : kind === "runner" ? 5.5 : 4.5,
+      context.currentTime,
+    );
     masterGain.connect(context.destination);
 
     contextRef.current = context;
@@ -335,19 +363,24 @@ export function useBackgroundMusic(kind: MusicKind, shouldPlay: boolean) {
 
     const bpm = kind === "runner" ? 156 : 108;
     const stepDuration = 60 / bpm / 2;
-    let nextStepTime = context.currentTime + 0.05;
-    let step = 0;
+    nextStepTimeRef.current = context.currentTime + 0.05;
+    stepRef.current = 0;
 
     const schedule = () => {
+      if (pausedRef.current) {
+        nextStepTimeRef.current = context.currentTime + 0.05;
+        return;
+      }
+
       const scheduleUntil = context.currentTime + 0.22;
-      while (nextStepTime < scheduleUntil) {
+      while (nextStepTimeRef.current < scheduleUntil) {
         if (kind === "runner") {
-          scheduleRunnerStep(context, masterGain, step, nextStepTime);
+          scheduleRunnerStep(context, masterGain, stepRef.current, nextStepTimeRef.current);
         } else {
-          scheduleWesternStep(context, masterGain, step, nextStepTime);
+          scheduleWesternStep(context, masterGain, stepRef.current, nextStepTimeRef.current);
         }
-        nextStepTime += stepDuration;
-        step = (step + 1) % 16;
+        nextStepTimeRef.current += stepDuration;
+        stepRef.current = (stepRef.current + 1) % 16;
       }
     };
 

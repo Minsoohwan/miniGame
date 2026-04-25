@@ -94,8 +94,8 @@ function registerScoreHandlers() {
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 720,
+    width: 1680,
+    height: 960,
     minWidth: 960,
     minHeight: 540,
     backgroundColor: "#0b1020",

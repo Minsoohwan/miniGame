@@ -1,14 +1,12 @@
 import * as THREE from "three";
 import { createGridFloorTexture, createSkyTexture } from "./textures";
+import { PLAYER_MOVE_CLAMP_X } from "./player";
 
 export type TrackResources = {
   skyTex: THREE.CanvasTexture;
   skyGeo: THREE.PlaneGeometry;
   skyMat: THREE.MeshBasicMaterial;
   sky: THREE.Mesh;
-  horizonGeo: THREE.PlaneGeometry;
-  horizonMat: THREE.MeshBasicMaterial;
-  horizon: THREE.Mesh;
   floorTex: THREE.CanvasTexture;
   floorGeo: THREE.PlaneGeometry;
   floorMat: THREE.MeshStandardMaterial;
@@ -18,9 +16,9 @@ export type TrackResources = {
 };
 
 const PARALLAX_SKY = 0.045;
-const PARALLAX_HORIZON = 0.12;
 const FLOOR_TEX_SCROLL = 0.35;
 const FLOOR_TEX_SCROLL_X = 0.02;
+const FLOOR_WIDTH = PLAYER_MOVE_CLAMP_X * 2;
 
 export function createTrack(scene: THREE.Scene): TrackResources {
   const skyTex = createSkyTexture();
@@ -33,20 +31,9 @@ export function createTrack(scene: THREE.Scene): TrackResources {
   sky.position.set(0, 10, -32);
   scene.add(sky);
 
-  const horizonGeo = new THREE.PlaneGeometry(120, 8);
-  const horizonMat = new THREE.MeshBasicMaterial({
-    color: 0x1e2a44,
-    transparent: true,
-    opacity: 0.85,
-    fog: true,
-  });
-  const horizon = new THREE.Mesh(horizonGeo, horizonMat);
-  horizon.position.set(0, 1.2, -28);
-  scene.add(horizon);
-
   const floorTex = createGridFloorTexture();
   const segmentLen = 14;
-  const floorGeo = new THREE.PlaneGeometry(14, segmentLen);
+  const floorGeo = new THREE.PlaneGeometry(FLOOR_WIDTH, segmentLen);
   const floorMat = new THREE.MeshStandardMaterial({
     map: floorTex,
     roughness: 0.85,
@@ -67,9 +54,6 @@ export function createTrack(scene: THREE.Scene): TrackResources {
     skyGeo,
     skyMat,
     sky,
-    horizonGeo,
-    horizonMat,
-    horizon,
     floorTex,
     floorGeo,
     floorMat,
@@ -83,8 +67,6 @@ export function disposeTrack(tr: TrackResources) {
   tr.skyGeo.dispose();
   tr.skyMat.dispose();
   tr.skyTex.dispose();
-  tr.horizonGeo.dispose();
-  tr.horizonMat.dispose();
   tr.floorGeo.dispose();
   tr.floorMat.dispose();
   tr.floorTex.dispose();
@@ -105,9 +87,6 @@ export function updateTrackScroll({
 }: TrackScrollParams) {
   tr.skyTex.offset.y += PARALLAX_SKY * speedMul * dt;
   tr.skyTex.offset.x += PARALLAX_SKY * 0.15 * speedMul * dt;
-
-  tr.horizon.position.z += scrollSpeed * PARALLAX_HORIZON * dt;
-  if (tr.horizon.position.z > -12) tr.horizon.position.z = -28;
 
   for (const seg of tr.floorSegments) {
     seg.position.z += scrollSpeed * dt;
