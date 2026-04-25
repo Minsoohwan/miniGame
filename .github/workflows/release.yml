@@ -44,7 +44,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Windows Build #{0}', github.run_number) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Windows Build {0}', github.run_number) }}
           files: release/3D-Mini-Games-Setup.exe
           make_latest: true
         env:
