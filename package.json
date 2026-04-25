@@ -31,7 +31,7 @@
     "win": {
       "target": "nsis",
       "icon": "src/assets/icon/icon.ico",
-      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "artifactName": "3D-Mini-Games-Setup.${ext}",
       "signAndEditExecutable": false
     },
     "mac": {

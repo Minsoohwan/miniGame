@@ -107,6 +107,29 @@ npm run build:mac
 
 macOS 빌드는 `.dmg`와 `.zip` 형식으로 생성됩니다.
 
+## GitHub 배포
+
+이 저장소는 GitHub Actions를 통해 Windows 설치파일을 Release asset으로 배포할 수 있습니다.
+
+- `.github/workflows/release.yml`: Windows 설치파일을 빌드하고 GitHub Release에 `3D-Mini-Games-Setup.exe`로 업로드합니다.
+- `.github/workflows/pages.yml`: `docs/` 폴더를 GitHub Pages로 배포합니다.
+- `docs/index.html`: 최신 Release의 Windows 설치파일을 다운로드하는 랜딩 페이지입니다.
+
+Release 워크플로는 Git tag가 `v*` 형식으로 푸시될 때 자동 실행됩니다.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions 화면에서 `Build Windows Installer Release` 워크플로를 수동 실행할 수도 있습니다.
+
+GitHub Pages 주소에서는 다음 최신 Release asset을 다운로드합니다.
+
+```text
+https://github.com/<owner>/<repo>/releases/latest/download/3D-Mini-Games-Setup.exe
+```
+
 ## 로컬 데이터
 
 각 게임의 기록은 Electron 환경에서는 `electron-store`에 저장됩니다. 브라우저 환경이나 Electron API를 사용할 수 없는 경우에는 `localStorage`를 fallback 저장소로 사용합니다.
