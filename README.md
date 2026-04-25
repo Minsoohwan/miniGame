@@ -131,10 +131,16 @@ GitHub Pages는 저장소 설정에서 한 번만 활성화하면 됩니다.
 3. Branch를 `gh-pages`, 폴더를 `/ (root)`로 선택합니다.
 4. 저장하면 `docs/index.html`이 다운로드 페이지로 배포됩니다.
 
-GitHub Pages 주소에서는 다음 최신 Release asset을 다운로드합니다.
+GitHub Pages 다운로드 페이지:
 
 ```text
-https://github.com/<owner>/<repo>/releases/latest/download/3D-Mini-Games-Setup.exe
+https://minsoohwan.github.io/miniGame/
+```
+
+직접 설치파일 다운로드 주소:
+
+```text
+https://github.com/Minsoohwan/miniGame/releases/latest/download/3D-Mini-Games-Setup.exe
 ```
 
 ## 로컬 데이터
