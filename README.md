@@ -143,6 +143,19 @@ https://minsoohwan.github.io/miniGame/
 https://github.com/Minsoohwan/miniGame/releases/latest/download/3D-Mini-Games-Setup.exe
 ```
 
+### Windows 다운로드 경고 안내
+
+현재 배포되는 Windows 설치파일은 개인 프로젝트용 빌드이며, 별도의 코드 서명 인증서로 서명되어 있지 않습니다. 따라서 Edge, Chrome, Windows SmartScreen에서 다음과 같은 경고가 표시될 수 있습니다.
+
+```text
+3D-Mini-Games-Setup.exe은(는) 일반적으로 다운로드되지 않습니다.
+열기 전에 3D-Mini-Games-Setup.exe을(를) 신뢰하는지 확인합니다.
+```
+
+이는 새로 배포된 미서명 실행파일에서 흔히 발생하는 평판 기반 보안 경고입니다. 설치하려면 다운로드 항목에서 `계속`, `유지`, 또는 Windows SmartScreen의 `추가 정보 > 실행`을 선택해야 할 수 있습니다.
+
+경고를 줄이려면 Windows 코드 서명 인증서로 설치파일을 서명해야 합니다.
+
 ## 로컬 데이터
 
 각 게임의 기록은 Electron 환경에서는 `electron-store`에 저장됩니다. 브라우저 환경이나 Electron API를 사용할 수 없는 경우에는 `localStorage`를 fallback 저장소로 사용합니다.
