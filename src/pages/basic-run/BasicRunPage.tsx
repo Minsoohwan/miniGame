@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
+import { createScoreShareUrl, useHighScore } from "../../hooks/useHighScore";
 import { useStartCountdown } from "../../hooks/useStartCountdown";
 import { formatElapsed } from "./logic/formatElapsed";
 import {
@@ -27,6 +28,9 @@ export function BasicRunPage() {
   const [sessionKey, setSessionKey] = useState(0);
   const [elapsedUi, setElapsedUi] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [newHighScoreShareUrl, setNewHighScoreShareUrl] = useState<string | null>(null);
+  const [copiedShareUrl, setCopiedShareUrl] = useState(false);
+  const { highScore, submitScore } = useHighScore("basic-run");
   const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
 
   useEffect(() => {
@@ -187,8 +191,28 @@ export function BasicRunPage() {
     };
   }, [sessionKey]);
 
+  useEffect(() => {
+    if (!gameOver || survivalSeconds <= 0) return;
+    let cancelled = false;
+
+    submitScore(survivalSeconds).then((result) => {
+      if (cancelled) return;
+      if (result.isNewHighScore) {
+        setNewHighScoreShareUrl(
+          createScoreShareUrl("장애물 달리기", formatElapsed(survivalSeconds)),
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameOver, submitScore, survivalSeconds]);
+
   const handleRestart = () => {
     setMenuOpen(false);
+    setNewHighScoreShareUrl(null);
+    setCopiedShareUrl(false);
     setGameOver(false);
     setSurvivalSeconds(0);
     setElapsedUi(0);
@@ -199,7 +223,14 @@ export function BasicRunPage() {
     navigate("/");
   };
 
+  const handleCopyShareUrl = async () => {
+    if (!newHighScoreShareUrl) return;
+    await navigator.clipboard.writeText(newHighScoreShareUrl);
+    setCopiedShareUrl(true);
+  };
+
   const survivalLabel = formatElapsed(survivalSeconds);
+  const highScoreLabel = highScore ? formatElapsed(highScore.score) : "기록 없음";
 
   return (
     <div ref={containerRef} className="game-canvas">
@@ -262,6 +293,29 @@ export function BasicRunPage() {
             <p className="game-over-stat">
               생존 시간: <strong>{survivalLabel}</strong>
             </p>
+            <p className="game-over-stat">
+              최고 기록: <strong>{highScoreLabel}</strong>
+            </p>
+            {newHighScoreShareUrl && (
+              <div className="score-share-box">
+                <p className="score-share-title">최고 점수 갱신!</p>
+                <a
+                  className="score-share-link"
+                  href={newHighScoreShareUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  친구에게 자랑하기
+                </a>
+                <button
+                  type="button"
+                  className="score-share-copy"
+                  onClick={handleCopyShareUrl}
+                >
+                  {copiedShareUrl ? "링크 복사됨" : "링크 복사"}
+                </button>
+              </div>
+            )}
             <button
               type="button"
               className="game-over-restart"

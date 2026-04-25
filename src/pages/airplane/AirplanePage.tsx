@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
+import { createScoreShareUrl, useHighScore } from "../../hooks/useHighScore";
 import { useStartCountdown } from "../../hooks/useStartCountdown";
 import {
   collectItem,
@@ -25,6 +26,9 @@ export function AirplanePage() {
   const [speedUi, setSpeedUi] = useState(0);
   const [distanceUi, setDistanceUi] = useState(0);
   const [finalDistance, setFinalDistance] = useState(0);
+  const [newHighScoreShareUrl, setNewHighScoreShareUrl] = useState<string | null>(null);
+  const [copiedShareUrl, setCopiedShareUrl] = useState(false);
+  const { highScore, submitScore } = useHighScore("airplane");
   const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
 
   useEffect(() => {
@@ -343,8 +347,28 @@ export function AirplanePage() {
     };
   }, [sessionKey]);
 
+  useEffect(() => {
+    if (!gameOver || finalDistance <= 0) return;
+    let cancelled = false;
+
+    submitScore(finalDistance).then((result) => {
+      if (cancelled) return;
+      if (result.isNewHighScore) {
+        setNewHighScoreShareUrl(
+          createScoreShareUrl("종이비행기 협곡", `${finalDistance.toFixed(1)} m`),
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [finalDistance, gameOver, submitScore]);
+
   const handleRestart = () => {
     setMenuOpen(false);
+    setNewHighScoreShareUrl(null);
+    setCopiedShareUrl(false);
     setGameOver(false);
     setShieldCharges(0);
     setSpeedBuffLeft(0);
@@ -358,6 +382,14 @@ export function AirplanePage() {
   const handleHome = () => {
     navigate("/");
   };
+
+  const handleCopyShareUrl = async () => {
+    if (!newHighScoreShareUrl) return;
+    await navigator.clipboard.writeText(newHighScoreShareUrl);
+    setCopiedShareUrl(true);
+  };
+
+  const highScoreLabel = highScore ? `${highScore.score.toFixed(1)} m` : "기록 없음";
 
   return (
     <div ref={containerRef} className="game-canvas">
@@ -427,6 +459,29 @@ export function AirplanePage() {
             <p className="game-over-stat">
               이동 거리: <strong>{finalDistance.toFixed(1)} m</strong>
             </p>
+            <p className="game-over-stat">
+              최고 기록: <strong>{highScoreLabel}</strong>
+            </p>
+            {newHighScoreShareUrl && (
+              <div className="score-share-box">
+                <p className="score-share-title">최고 점수 갱신!</p>
+                <a
+                  className="score-share-link"
+                  href={newHighScoreShareUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  친구에게 자랑하기
+                </a>
+                <button
+                  type="button"
+                  className="score-share-copy"
+                  onClick={handleCopyShareUrl}
+                >
+                  {copiedShareUrl ? "링크 복사됨" : "링크 복사"}
+                </button>
+              </div>
+            )}
             <button
               type="button"
               className="game-over-restart"
