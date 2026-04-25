@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, ipcMain } from "electron";
 import Store from "electron-store";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,34 +11,83 @@ const store = new Store({
   name: "high-scores",
   defaults: {
     highScores: {},
+    scoreboards: {},
   },
 });
 
-function getHighScore(gameId) {
+function getScoreboard(gameId) {
   if (!gameIds.has(gameId)) return null;
-  return store.get(`highScores.${gameId}`, null);
+  const records = store.get(`scoreboards.${gameId}`, []);
+  if (Array.isArray(records) && records.length > 0) {
+    return sortScoreboard(
+      records.map((record, index) => ({
+        id: record.id ?? `${gameId}-${record.achievedAt ?? "record"}-${index}`,
+        score: record.score,
+        achievedAt: record.achievedAt ?? new Date(0).toISOString(),
+      })),
+    );
+  }
+
+  const legacyHighScore = store.get(`highScores.${gameId}`, null);
+  if (typeof legacyHighScore?.score === "number") {
+    return [
+      {
+        id: `legacy-${gameId}`,
+        score: legacyHighScore.score,
+        achievedAt: legacyHighScore.achievedAt ?? new Date(0).toISOString(),
+      },
+    ];
+  }
+
+  return [];
+}
+
+function getHighScore(gameId) {
+  const records = getScoreboard(gameId);
+  return records?.[0] ?? null;
+}
+
+function sortScoreboard(records) {
+  return records
+    .filter((record) => typeof record.score === "number" && Number.isFinite(record.score))
+    .sort((a, b) => b.score - a.score || a.achievedAt.localeCompare(b.achievedAt))
+    .slice(0, 5);
 }
 
 function registerScoreHandlers() {
   ipcMain.handle("scores:get-high-score", (_event, gameId) => getHighScore(gameId));
+  ipcMain.handle("scores:get-scoreboard", (_event, gameId) => getScoreboard(gameId));
+  ipcMain.handle("scores:get-all-scoreboards", () => ({
+    "basic-run": getScoreboard("basic-run"),
+    airplane: getScoreboard("airplane"),
+  }));
 
   ipcMain.handle("scores:submit", (_event, payload) => {
     const { gameId, score } = payload ?? {};
     if (!gameIds.has(gameId) || typeof score !== "number" || !Number.isFinite(score)) {
-      return { highScore: null, isNewHighScore: false };
+      return { highScore: null, scoreboard: [], currentRecordId: null, currentRank: null, isNewHighScore: false };
     }
 
-    const previous = getHighScore(gameId);
-    if (previous && previous.score >= score) {
-      return { highScore: previous, isNewHighScore: false };
-    }
-
+    const previous = getScoreboard(gameId);
     const next = {
+      id: randomUUID(),
       score,
       achievedAt: new Date().toISOString(),
     };
-    store.set(`highScores.${gameId}`, next);
-    return { highScore: next, isNewHighScore: true };
+    const scoreboard = sortScoreboard([...previous, next]);
+    const index = scoreboard.findIndex((record) => record.id === next.id);
+    const currentRank = index >= 0 ? index + 1 : null;
+
+    store.set(`scoreboards.${gameId}`, scoreboard);
+    store.set(`highScores.${gameId}`, scoreboard[0] ?? null);
+
+    return {
+      highScore: scoreboard[0] ?? null,
+      scoreboard,
+      currentRecordId: currentRank ? next.id : null,
+      currentRank,
+      isNewHighScore: currentRank === 1,
+    };
   });
 }
 

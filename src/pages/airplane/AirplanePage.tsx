@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
-import { createScoreShareUrl, useHighScore } from "../../hooks/useHighScore";
+import { useHighScore } from "../../hooks/useHighScore";
 import { useStartCountdown } from "../../hooks/useStartCountdown";
 import {
   collectItem,
@@ -26,9 +26,10 @@ export function AirplanePage() {
   const [speedUi, setSpeedUi] = useState(0);
   const [distanceUi, setDistanceUi] = useState(0);
   const [finalDistance, setFinalDistance] = useState(0);
-  const [newHighScoreShareUrl, setNewHighScoreShareUrl] = useState<string | null>(null);
-  const [copiedShareUrl, setCopiedShareUrl] = useState(false);
-  const { highScore, submitScore } = useHighScore("airplane");
+  const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
+  const submittedScoreRef = useRef(false);
+  const scoreSubmitTokenRef = useRef(0);
+  const { highScore, scoreboard, submitScore } = useHighScore("airplane");
   const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
 
   useEffect(() => {
@@ -349,26 +350,22 @@ export function AirplanePage() {
 
   useEffect(() => {
     if (!gameOver || finalDistance <= 0) return;
-    let cancelled = false;
+    if (submittedScoreRef.current) return;
+    submittedScoreRef.current = true;
+    const submitToken = scoreSubmitTokenRef.current + 1;
+    scoreSubmitTokenRef.current = submitToken;
 
     submitScore(finalDistance).then((result) => {
-      if (cancelled) return;
-      if (result.isNewHighScore) {
-        setNewHighScoreShareUrl(
-          createScoreShareUrl("종이비행기 협곡", `${finalDistance.toFixed(1)} m`),
-        );
-      }
+      if (scoreSubmitTokenRef.current !== submitToken) return;
+      setCurrentRecordId(result.currentRecordId);
     });
-
-    return () => {
-      cancelled = true;
-    };
   }, [finalDistance, gameOver, submitScore]);
 
   const handleRestart = () => {
     setMenuOpen(false);
-    setNewHighScoreShareUrl(null);
-    setCopiedShareUrl(false);
+    setCurrentRecordId(null);
+    submittedScoreRef.current = false;
+    scoreSubmitTokenRef.current += 1;
     setGameOver(false);
     setShieldCharges(0);
     setSpeedBuffLeft(0);
@@ -381,12 +378,6 @@ export function AirplanePage() {
 
   const handleHome = () => {
     navigate("/");
-  };
-
-  const handleCopyShareUrl = async () => {
-    if (!newHighScoreShareUrl) return;
-    await navigator.clipboard.writeText(newHighScoreShareUrl);
-    setCopiedShareUrl(true);
   };
 
   const highScoreLabel = highScore ? `${highScore.score.toFixed(1)} m` : "기록 없음";
@@ -462,26 +453,28 @@ export function AirplanePage() {
             <p className="game-over-stat">
               최고 기록: <strong>{highScoreLabel}</strong>
             </p>
-            {newHighScoreShareUrl && (
-              <div className="score-share-box">
-                <p className="score-share-title">최고 점수 갱신!</p>
-                <a
-                  className="score-share-link"
-                  href={newHighScoreShareUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  친구에게 자랑하기
-                </a>
-                <button
-                  type="button"
-                  className="score-share-copy"
-                  onClick={handleCopyShareUrl}
-                >
-                  {copiedShareUrl ? "링크 복사됨" : "링크 복사"}
-                </button>
-              </div>
-            )}
+            <div className="scoreboard-panel">
+              <p className="scoreboard-title">로컬 기록 TOP 5</p>
+              {scoreboard.length > 0 ? (
+                <ol className="scoreboard-list">
+                  {scoreboard.map((record, index) => (
+                    <li
+                      key={record.id}
+                      className={
+                        record.id === currentRecordId
+                          ? "scoreboard-row scoreboard-row-current"
+                          : "scoreboard-row"
+                      }
+                    >
+                      <span>{index + 1}위</span>
+                      <strong>{record.score.toFixed(1)} m</strong>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="scoreboard-empty">아직 기록이 없습니다.</p>
+              )}
+            </div>
             <button
               type="button"
               className="game-over-restart"
