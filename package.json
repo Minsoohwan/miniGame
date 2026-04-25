@@ -8,8 +8,8 @@
     "dev": "vite",
     "dev:electron": "concurrently -k \"vite --host 127.0.0.1 --strictPort\" \"wait-on tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "tsc -b && vite build",
-    "build:exe": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win dir && node scripts/patch-win-icon.mjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --prepackaged release/win-unpacked",
-    "build:mac": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
+    "build:exe": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win dir --publish never && node scripts/patch-win-icon.mjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --prepackaged release/win-unpacked --publish never",
+    "build:mac": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "start:electron": "npm run build && electron .",
     "lint": "eslint .",
     "preview": "vite preview"
