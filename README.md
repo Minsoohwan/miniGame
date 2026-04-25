@@ -112,7 +112,7 @@ macOS 빌드는 `.dmg`와 `.zip` 형식으로 생성됩니다.
 이 저장소는 GitHub Actions를 통해 Windows 설치파일을 Release asset으로 배포할 수 있습니다.
 
 - `.github/workflows/release.yml`: Windows 설치파일을 빌드하고 GitHub Release에 `3D-Mini-Games-Setup.exe`로 업로드합니다.
-- `.github/workflows/pages.yml`: `docs/` 폴더를 GitHub Pages로 배포합니다.
+- `.github/workflows/pages.yml`: `docs/` 폴더를 `gh-pages` 브랜치로 배포합니다.
 - `docs/index.html`: 최신 Release의 Windows 설치파일을 다운로드하는 랜딩 페이지입니다.
 
 Release 워크플로는 Git tag가 `v*` 형식으로 푸시될 때 자동 실행됩니다.
@@ -122,7 +122,14 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-GitHub Actions 화면에서 `Build Windows Installer Release` 워크플로를 수동 실행할 수도 있습니다.
+GitHub Actions 화면에서 `Build Windows Installer Release` 워크플로를 수동 실행할 수도 있습니다. 수동 실행 시에는 `build-<run number>` 형식의 Release가 생성되고 최신 Release로 표시됩니다.
+
+GitHub Pages는 저장소 설정에서 한 번만 활성화하면 됩니다.
+
+1. GitHub 저장소의 `Settings > Pages`로 이동합니다.
+2. `Build and deployment`의 Source를 `Deploy from a branch`로 선택합니다.
+3. Branch를 `gh-pages`, 폴더를 `/ (root)`로 선택합니다.
+4. 저장하면 `docs/index.html`이 다운로드 페이지로 배포됩니다.
 
 GitHub Pages 주소에서는 다음 최신 Release asset을 다운로드합니다.
 
