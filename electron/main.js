@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
+const appIconPath = path.join(__dirname, "../src/assets/icon/icon.ico");
 const gameIds = new Set(["basic-run", "airplane"]);
 const store = new Store({
   name: "high-scores",
@@ -99,6 +100,7 @@ function createWindow() {
     minHeight: 540,
     backgroundColor: "#0b1020",
     autoHideMenuBar: true,
+    icon: appIconPath,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
