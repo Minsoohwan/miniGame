@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
+import { useStartCountdown } from "../../hooks/useStartCountdown";
 import {
   collectItem,
   createAirBackground,
@@ -11,15 +13,23 @@ import { createPaperPlane } from "./logic/createPaperPlane";
 import { getAirplaneHudLabel } from "./logic/hud";
 
 export function AirplanePage() {
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
+  const pausedRef = useRef(false);
   const [sessionKey, setSessionKey] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [shieldCharges, setShieldCharges] = useState(0);
   const [speedBuffLeft, setSpeedBuffLeft] = useState(0);
   const [speedStacks, setSpeedStacks] = useState(0);
   const [speedUi, setSpeedUi] = useState(0);
   const [distanceUi, setDistanceUi] = useState(0);
   const [finalDistance, setFinalDistance] = useState(0);
+  const { countdownLabel, isCountingDown } = useStartCountdown(sessionKey);
+
+  useEffect(() => {
+    pausedRef.current = (menuOpen || isCountingDown) && !gameOver;
+  }, [menuOpen, isCountingDown, gameOver]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -161,6 +171,12 @@ export function AirplanePage() {
     let shieldSpin = 0;
     const tick = () => {
       if (!running) return;
+      if (pausedRef.current) {
+        clock.getDelta();
+        renderer.render(scene, camera);
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
       const dt = Math.min(clock.getDelta(), 0.05);
       elapsedTotal += dt;
       uiAcc += dt;
@@ -328,6 +344,7 @@ export function AirplanePage() {
   }, [sessionKey]);
 
   const handleRestart = () => {
+    setMenuOpen(false);
     setGameOver(false);
     setShieldCharges(0);
     setSpeedBuffLeft(0);
@@ -336,6 +353,10 @@ export function AirplanePage() {
     setDistanceUi(0);
     setFinalDistance(0);
     setSessionKey((k) => k + 1);
+  };
+
+  const handleHome = () => {
+    navigate("/");
   };
 
   return (
@@ -354,6 +375,50 @@ export function AirplanePage() {
         <div>보호막 x{shieldCharges}</div>
         <div>현재 속도 {speedUi.toFixed(1)}</div>
       </div>
+      {!gameOver && !isCountingDown && (
+        <button
+          type="button"
+          className="game-menu-button"
+          aria-label="게임 메뉴 열기"
+          onClick={() => setMenuOpen(true)}
+        >
+          ⚙
+        </button>
+      )}
+      {countdownLabel && !gameOver && !menuOpen && (
+        <div className="game-countdown-overlay" aria-live="assertive">
+          <div className="game-countdown-label">{countdownLabel}</div>
+        </div>
+      )}
+      {menuOpen && !gameOver && (
+        <div className="game-over-overlay" role="dialog" aria-modal="true">
+          <div className="game-over-modal">
+            <h2 className="game-over-title">게임 메뉴</h2>
+            <p className="game-over-stat">게임이 일시 정지되었습니다.</p>
+            <button
+              type="button"
+              className="game-over-restart"
+              onClick={handleRestart}
+            >
+              다시 하기
+            </button>
+            <button
+              type="button"
+              className="game-over-restart game-over-secondary"
+              onClick={handleHome}
+            >
+              홈으로
+            </button>
+            <button
+              type="button"
+              className="game-menu-close"
+              onClick={() => setMenuOpen(false)}
+            >
+              계속하기
+            </button>
+          </div>
+        </div>
+      )}
       {gameOver && (
         <div className="game-over-overlay" role="dialog" aria-modal="true">
           <div className="game-over-modal">
@@ -368,6 +433,13 @@ export function AirplanePage() {
               onClick={handleRestart}
             >
               다시 하기
+            </button>
+            <button
+              type="button"
+              className="game-over-restart game-over-secondary"
+              onClick={handleHome}
+            >
+              홈으로
             </button>
           </div>
         </div>

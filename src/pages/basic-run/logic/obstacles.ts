@@ -366,23 +366,179 @@ export function stepObstacles(
   }
 }
 
-const playerHitBox = new THREE.Box3();
-const obstacleHitBox = new THREE.Box3();
+type HitSphere = {
+  center: THREE.Vector3;
+  radius: number;
+};
+
+const playerHitSpheres: HitSphere[] = [
+  { center: new THREE.Vector3(), radius: 0.16 },
+  { center: new THREE.Vector3(), radius: 0.2 },
+  { center: new THREE.Vector3(), radius: 0.23 },
+  { center: new THREE.Vector3(), radius: 0.15 },
+];
+
+const playerHitOffsets = [
+  new THREE.Vector3(0, 0.22, 0.04),
+  new THREE.Vector3(0, 0.52, 0),
+  new THREE.Vector3(0, 0.78, 0),
+  new THREE.Vector3(0, 1.05, -0.02),
+];
+
+const localCenter = new THREE.Vector3();
+const closestPoint = new THREE.Vector3();
+
+function updatePlayerHitSpheres(human: HumanPlayer) {
+  human.root.updateMatrixWorld(true);
+  for (let i = 0; i < playerHitSpheres.length; i++) {
+    playerHitSpheres[i].center.copy(playerHitOffsets[i]);
+    human.root.localToWorld(playerHitSpheres[i].center);
+  }
+}
+
+function sphereIntersectsLocalBox(
+  sphere: HitSphere,
+  obstacle: THREE.Object3D,
+  boxCenter: THREE.Vector3,
+  halfSize: THREE.Vector3,
+) {
+  localCenter.copy(sphere.center);
+  obstacle.worldToLocal(localCenter);
+  closestPoint.set(
+    THREE.MathUtils.clamp(localCenter.x, boxCenter.x - halfSize.x, boxCenter.x + halfSize.x),
+    THREE.MathUtils.clamp(localCenter.y, boxCenter.y - halfSize.y, boxCenter.y + halfSize.y),
+    THREE.MathUtils.clamp(localCenter.z, boxCenter.z - halfSize.z, boxCenter.z + halfSize.z),
+  );
+  return closestPoint.distanceToSquared(localCenter) <= sphere.radius * sphere.radius;
+}
+
+function sphereIntersectsLocalSphere(
+  sphere: HitSphere,
+  obstacle: THREE.Object3D,
+  center: THREE.Vector3,
+  radius: number,
+) {
+  localCenter.copy(sphere.center);
+  obstacle.worldToLocal(localCenter);
+  const combinedRadius = sphere.radius + radius;
+  return localCenter.distanceToSquared(center) <= combinedRadius * combinedRadius;
+}
+
+function sphereIntersectsLocalVerticalCylinder(
+  sphere: HitSphere,
+  obstacle: THREE.Object3D,
+  centerY: number,
+  halfHeight: number,
+  radius: number,
+) {
+  localCenter.copy(sphere.center);
+  obstacle.worldToLocal(localCenter);
+  const dy = Math.max(0, Math.abs(localCenter.y - centerY) - halfHeight);
+  const radial = Math.hypot(localCenter.x, localCenter.z);
+  const dr = Math.max(0, radial - radius);
+  return dy * dy + dr * dr <= sphere.radius * sphere.radius;
+}
+
+function sphereIntersectsLocalXAxisCylinder(
+  sphere: HitSphere,
+  obstacle: THREE.Object3D,
+  center: THREE.Vector3,
+  halfLength: number,
+  radius: number,
+) {
+  localCenter.copy(sphere.center);
+  obstacle.worldToLocal(localCenter);
+  const dx = Math.max(0, Math.abs(localCenter.x - center.x) - halfLength);
+  const radial = Math.hypot(localCenter.y - center.y, localCenter.z - center.z);
+  const dr = Math.max(0, radial - radius);
+  return dx * dx + dr * dr <= sphere.radius * sphere.radius;
+}
+
+function sphereIntersectsLocalCone(sphere: HitSphere, obstacle: THREE.Object3D) {
+  localCenter.copy(sphere.center);
+  obstacle.worldToLocal(localCenter);
+
+  const baseY = 0.04;
+  const tipY = 0.74;
+  const closestY = THREE.MathUtils.clamp(localCenter.y, baseY, tipY);
+  const heightT = (closestY - baseY) / (tipY - baseY);
+  const coneRadiusAtY = THREE.MathUtils.lerp(0.34, 0, heightT);
+  const dy = Math.max(0, baseY - localCenter.y, localCenter.y - tipY);
+  const radial = Math.hypot(localCenter.x, localCenter.z);
+  const dr = Math.max(0, radial - coneRadiusAtY);
+
+  if (dy * dy + dr * dr <= sphere.radius * sphere.radius) return true;
+  return sphereIntersectsLocalVerticalCylinder(sphere, obstacle, 0.04, 0.04, 0.4);
+}
+
+const zero = new THREE.Vector3(0, 0, 0);
+const gearCenter = new THREE.Vector3(0, 0.48, 0);
+const carLowerCenter = new THREE.Vector3(0, 0.36, 0);
+const carLowerHalf = new THREE.Vector3(0.64, 0.17, 0.33);
+const carCabinCenter = new THREE.Vector3(0, 0.62, -0.05);
+const carCabinHalf = new THREE.Vector3(0.34, 0.15, 0.275);
+const carRoofCenter = new THREE.Vector3(0, 0.78, -0.05);
+const carRoofHalf = new THREE.Vector3(0.31, 0.04, 0.26);
+const carHoodCenter = new THREE.Vector3(0, 0.38, 0.4);
+const carHoodHalf = new THREE.Vector3(0.55, 0.08, 0.16);
+const carBumperCenter = new THREE.Vector3(0, 0.22, 0.38);
+const carBumperHalf = new THREE.Vector3(0.66, 0.06, 0.06);
+const crateCenter = new THREE.Vector3(0, 0.47, 0);
+const crateHalf = new THREE.Vector3(0.51, 0.51, 0.51);
+const carWheelCenters = [
+  new THREE.Vector3(-0.52, 0.13, 0.3),
+  new THREE.Vector3(0.52, 0.13, 0.3),
+  new THREE.Vector3(-0.52, 0.13, -0.3),
+  new THREE.Vector3(0.52, 0.13, -0.3),
+];
+
+function sphereIntersectsObstacle(sphere: HitSphere, obstacle: THREE.Group) {
+  const kind = obstacle.userData.kind as ObstacleKind;
+
+  if (kind === "gear") {
+    return sphereIntersectsLocalSphere(sphere, obstacle, gearCenter, 0.64);
+  }
+
+  if (kind === "car") {
+    if (sphereIntersectsLocalBox(sphere, obstacle, carLowerCenter, carLowerHalf)) return true;
+    if (sphereIntersectsLocalBox(sphere, obstacle, carCabinCenter, carCabinHalf)) return true;
+    if (sphereIntersectsLocalBox(sphere, obstacle, carRoofCenter, carRoofHalf)) return true;
+    if (sphereIntersectsLocalBox(sphere, obstacle, carHoodCenter, carHoodHalf)) return true;
+    if (sphereIntersectsLocalBox(sphere, obstacle, carBumperCenter, carBumperHalf)) return true;
+    return carWheelCenters.some((center) =>
+      sphereIntersectsLocalXAxisCylinder(sphere, obstacle, center, 0.05, 0.13),
+    );
+  }
+
+  if (kind === "crate") {
+    return sphereIntersectsLocalBox(sphere, obstacle, crateCenter, crateHalf);
+  }
+
+  if (kind === "barrel") {
+    return sphereIntersectsLocalVerticalCylinder(sphere, obstacle, 0.51, 0.51, 0.4);
+  }
+
+  if (kind === "cone") {
+    return sphereIntersectsLocalCone(sphere, obstacle);
+  }
+
+  return sphereIntersectsLocalSphere(sphere, obstacle, zero, 0.5);
+}
 
 export function checkPlayerObstacleCollision(
   human: HumanPlayer,
   obstacles: THREE.Group[],
 ): boolean {
-  human.root.updateMatrixWorld(true);
-  playerHitBox.setFromObject(human.root);
+  updatePlayerHitSpheres(human);
   for (const o of obstacles) {
     if (!o.visible) continue;
     const oz = o.position.z;
     if (oz < -3.2 || oz > 4.5) continue;
     o.updateMatrixWorld(true);
-    obstacleHitBox.setFromObject(o);
-    if (playerHitBox.intersectsBox(obstacleHitBox)) {
-      return true;
+    for (const sphere of playerHitSpheres) {
+      if (sphereIntersectsObstacle(sphere, o)) {
+        return true;
+      }
     }
   }
   return false;

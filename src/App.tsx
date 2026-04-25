@@ -1,19 +1,21 @@
 import { BasicRunPage } from "./pages/basic-run/BasicRunPage";
 import { AirplanePage } from "./pages/airplane/AirplanePage";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HomePage } from "./pages/HomePage";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="app">
         <Routes>
+          <Route path="/" element={<HomePage />} />
           <Route path="/basic-run" element={<BasicRunPage />} />
           <Route path="/airplane" element={<AirplanePage />} />
-          <Route path="*" element={<Navigate to="/basic-run" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
