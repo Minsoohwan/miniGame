@@ -21,6 +21,59 @@ import {
 import { createPaperPlane } from "./logic/createPaperPlane";
 import { getAirplaneHudLabel } from "./logic/hud";
 
+const SHIELD_BUBBLE_VERTEX_SHADER = `
+  uniform float uTime;
+
+  varying vec3 vNormal;
+  varying vec3 vViewPosition;
+  varying vec3 vSurfacePosition;
+  varying float vRipple;
+
+  void main() {
+    float rippleA = sin(position.y * 7.0 + uTime * 4.5);
+    float rippleB = sin(position.x * 5.0 - uTime * 3.2 + position.z * 2.0);
+    float ripple = rippleA * rippleB;
+    vec3 displaced = position + normal * ripple * 0.035;
+    vec4 viewPosition = modelViewMatrix * vec4(displaced, 1.0);
+
+    vNormal = normalize(normalMatrix * normal);
+    vViewPosition = -viewPosition.xyz;
+    vSurfacePosition = position;
+    vRipple = ripple;
+    gl_Position = projectionMatrix * viewPosition;
+  }
+`;
+
+const SHIELD_BUBBLE_FRAGMENT_SHADER = `
+  uniform float uTime;
+  uniform float uHitFlash;
+
+  varying vec3 vNormal;
+  varying vec3 vViewPosition;
+  varying vec3 vSurfacePosition;
+  varying float vRipple;
+
+  void main() {
+    vec3 normal = normalize(vNormal);
+    vec3 viewDirection = normalize(vViewPosition);
+    float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.2);
+    float flow = 0.5 + 0.5 * sin(
+      vSurfacePosition.y * 11.0
+      + vSurfacePosition.x * 3.5
+      - uTime * 6.5
+      + vRipple
+    );
+    float pulse = 0.5 + 0.5 * sin(uTime * 4.0);
+    float brightness = fresnel * 1.35 + flow * 0.2 + pulse * 0.08 + uHitFlash * 0.9;
+    vec3 coreColor = vec3(0.05, 0.48, 1.0);
+    vec3 edgeColor = vec3(0.45, 0.94, 1.0);
+    vec3 color = mix(coreColor, edgeColor, min(1.0, fresnel + uHitFlash * 0.5));
+    float alpha = 0.05 + fresnel * 0.5 + flow * 0.07 + uHitFlash * 0.18;
+
+    gl_FragColor = vec4(color * brightness, alpha);
+  }
+`;
+
 export function AirplanePage() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,14 +195,14 @@ export function AirplanePage() {
     scene.add(shieldVisuals);
 
     const shieldBubbleGeo = new THREE.SphereGeometry(1.7, 28, 20);
-    const shieldBubbleMat = new THREE.MeshStandardMaterial({
-      color: 0x7fd8ff,
-      emissive: 0x4ab8ff,
-      emissiveIntensity: 0.85,
+    const shieldBubbleMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uHitFlash: { value: 0 },
+      },
+      vertexShader: SHIELD_BUBBLE_VERTEX_SHADER,
+      fragmentShader: SHIELD_BUBBLE_FRAGMENT_SHADER,
       transparent: true,
-      opacity: 0.23,
-      roughness: 0.12,
-      metalness: 0.05,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -306,6 +359,11 @@ export function AirplanePage() {
       shieldVisuals.visible = shieldCount > 0;
       if (shieldVisuals.visible) {
         shieldVisuals.position.copy(plane.root.position);
+        shieldBubbleMat.uniforms.uTime.value = elapsedTotal;
+        shieldBubbleMat.uniforms.uHitFlash.value = Math.min(
+          1,
+          shieldCooldown / 0.8
+        );
         shieldBaseQuat.setFromUnitVectors(shieldForwardAxis, planeForward);
         shieldSpin += dt * 2.4;
         shieldSpinQuat.setFromAxisAngle(shieldForwardAxis, shieldSpin);
@@ -413,7 +471,9 @@ export function AirplanePage() {
     setSoundEnabled((enabled) => !enabled);
   };
 
-  const highScoreLabel = highScore ? `${highScore.score.toFixed(1)} m` : "기록 없음";
+  const highScoreLabel = highScore
+    ? `${highScore.score.toFixed(1)} m`
+    : "기록 없음";
 
   return (
     <div ref={containerRef} className="game-canvas">
@@ -440,7 +500,11 @@ export function AirplanePage() {
             aria-pressed={soundEnabled}
             onClick={handleToggleSound}
           >
-            <svg className="game-icon game-icon-sound" viewBox="0 0 24 24" aria-hidden="true">
+            <svg
+              className="game-icon game-icon-sound"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
               <path d="M4 9.5v5h4l5 4.5V5L8 9.5H4Z" />
               {soundEnabled ? (
                 <>
